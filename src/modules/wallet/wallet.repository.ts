@@ -87,6 +87,30 @@ export const incrementBalance = async (
   })
 }
 
+export const settleBuyerFiatForTrade = async (
+  tx: Prisma.TransactionClient,
+  userId: bigint,
+  fiatCurrencyId: bigint,
+  spentAmount: string,
+  refundAmount: string
+) => {
+  const spent = new Decimal(spentAmount)
+  const refund = new Decimal(refundAmount)
+  const totalLockedDecrease = spent.plus(refund)
+
+  return tx.wallet.updateMany({
+    where: {
+      userId,
+      currencyId: fiatCurrencyId,
+      lockedBalance: { gte: totalLockedDecrease.toString() }
+    },
+    data: {
+      balance: { increment: refund.toString() },
+      lockedBalance: { decrement: totalLockedDecrease.toString() }
+    }
+  })
+}
+
 export const refundLockedToBalance = async (
   tx: Prisma.TransactionClient,
   userId: bigint,

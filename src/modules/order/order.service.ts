@@ -55,7 +55,6 @@ export class OrderService{
           if (!wallet) throw new AppError(404, 'Wallet not found');
 
           const required = price.mul(amount);
-
           const update = await lockWalletBalance(
             tx, 
             wallet.id, 

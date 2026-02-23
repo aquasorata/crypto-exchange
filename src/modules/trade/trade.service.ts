@@ -2,7 +2,7 @@ import { Order, Prisma } from "@prisma/client";
 import Decimal from "decimal.js";
 import { toDecimal } from "../../shared/decimal";
 import { AppError } from "../../shared/errors";
-import { decrementLockedBalance, incrementBalance, incrementSystemBalance, refundLockedToBalance } from "../wallet/wallet.repository";
+import { decrementLockedBalance, incrementBalance, incrementSystemBalance, refundLockedToBalance, settleBuyerFiatForTrade } from "../wallet/wallet.repository";
 import { createTransactions } from "../transaction/transaction.repository";
 import { createTrade } from "./trade.repository";
 
@@ -53,11 +53,17 @@ export class TradeService{
     // -------------------------
     // BUYER
     // -------------------------
-    const buyerFiatUpdate = await decrementLockedBalance(
-      tx, 
-      buyerId, 
-      fiatId, 
-      tradeValue.toString()
+    const priceDiff = buyerLimitPrice.minus(executionPrice);
+    const refundAmount = priceDiff.gt(0)
+      ? priceDiff.mul(tradeAmount)
+      : new Decimal(0);
+
+    const buyerFiatUpdate = await settleBuyerFiatForTrade(
+      tx,
+      buyerId,
+      fiatId,
+      tradeValue.toString(),
+      refundAmount.toString()
     );
     if (buyerFiatUpdate.count !== 1) throw new AppError(409, "Buyer locked fiat changed");
   
@@ -71,16 +77,7 @@ export class TradeService{
     // -------------------------
     // REFUND
     // -------------------------
-    const priceDiff = buyerLimitPrice.minus(executionPrice);
-    if (priceDiff.gt(0)) {
-      const refundAmount = priceDiff.mul(tradeAmount);
-
-      const refundUpdate = await refundLockedToBalance(
-        tx, buyerId, fiatId, refundAmount.toString()
-      );
-
-      if (refundUpdate.count !== 1) throw new AppError(409, "Refund failed due to balance change");
-
+    if (refundAmount.gt(0)) {
       await createTransactions(tx, [{
         userId: buyerId,
         currencyId: fiatId,
