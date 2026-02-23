@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum CurrencyType {
+  CRYPTO
+  FIAT
+}
+
+enum OrderType {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  OPEN
+  MATCHED
+  CANCELLED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  TRADE
+  TRANSFER
+  REFUND
+  FEE
+}
+
+enum TransferStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum TransactionDirection {
+  CREDIT
+  DEBIT
+  IN
+  OUT
+}
+
+model User {
+  id                 BigInt   @id @default(autoincrement())
+  name               String   @db.VarChar(100)
+  role      Role     @default(USER)
+  email              String   @unique @db.VarChar(150)
+  password           String   @db.VarChar(255)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  wallets            Wallet[]
+  orders             Order[]
+  transactions       Transaction[]
+  internalTransfersFrom InternalTransfer[] @relation("FromUser")
+  internalTransfersTo   InternalTransfer[] @relation("ToUser")
+  externalTransfers  ExternalTransfer[]
+}
+
+model Currency {
+  id        BigInt       @id @default(autoincrement())
+  code      String       @unique @db.VarChar(10)
+  type      CurrencyType
+  createdAt DateTime     @default(now())
+
+  wallets            Wallet[]
+  orders             Order[]
+  transactions       Transaction[]
+  internalTransfers  InternalTransfer[]
+  externalTransfers  ExternalTransfer[]
+}
+
+model Wallet {
+  id            BigInt   @id @default(autoincrement())
+  userId        BigInt
+  currencyId    BigInt
+  balance       Decimal  @default(0.00000000) @db.Decimal(20, 8)
+  lockedBalance Decimal  @default(0) @db.Decimal(20,8)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id])
+  currency      Currency @relation(fields: [currencyId], references: [id])
+
+  lockedOrders Order[] @relation("LockedWallet")
+
+  @@unique([userId, currencyId])
+}
+
+model Order {
+  id              BigInt      @id @default(autoincrement())
+  clientOrderId   String      @unique
+  userId          BigInt
+  currencyId      BigInt
+  orderType       OrderType
+  price           Decimal     @db.Decimal(20, 8)
+  amount          Decimal     @db.Decimal(20, 8)
+  remainingAmount Decimal     @db.Decimal(20, 8)
+  status          OrderStatus @default(OPEN)
+  lockedWalletId  BigInt
+  lockedAmount    Decimal     @db.Decimal(20, 8)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id])
+  currency   Currency @relation(fields: [currencyId], references: [id])
+
+  lockedWallet Wallet @relation("LockedWallet", fields: [lockedWalletId], references: [id])
+
+  buyTrades  Trade[]  @relation("BuyOrder")
+  sellTrades Trade[]  @relation("SellOrder")
+  
+  @@index([currencyId, orderType, price, createdAt])
+}
+
+model Trade {
+  id              BigInt                         @id @default(autoincrement())
+  currencyId      BigInt
+  buyOrderId      BigInt
+  sellOrderId     BigInt
+  takerOrderId    BigInt
+  makerOrderId    BigInt
+  price           Decimal                        @db.Decimal(28, 8)
+  amount          Decimal                        @db.Decimal(28, 8)
+  value           Decimal                        @db.Decimal(28, 8)
+  buyerFee        Decimal  @default(0.00000000)  @db.Decimal(28, 8)
+  sellerFee       Decimal  @default(0.00000000)  @db.Decimal(28, 8)
+  buyerFeeRate    Decimal  @default(0.00000000)  @db.Decimal(10, 8)
+  sellerFeeRate   Decimal  @default(0.00000000)  @db.Decimal(10, 8)
+  createdAt       DateTime                       @default(now())
+
+  buyOrder  Order @relation("BuyOrder", fields: [buyOrderId], references: [id])
+  sellOrder Order @relation("SellOrder", fields: [sellOrderId], references: [id])
+
+  @@index([currencyId])
+  @@index([buyOrderId])
+  @@index([sellOrderId])
+  @@index([takerOrderId])
+  @@index([makerOrderId])
+
+  @@unique([buyOrderId, sellOrderId, createdAt])
+}
+
+model Transaction {
+  id          BigInt         @id @default(autoincrement())
+  userId      BigInt
+  currencyId  BigInt
+  type        TransactionType
+  direction   TransactionDirection
+  amount      Decimal        @db.Decimal(28, 8)
+  referenceId BigInt?
+  createdAt   DateTime       @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  currency  Currency @relation(fields: [currencyId], references: [id])
+
+  @@index([userId, currencyId])
+}
+
+model InternalTransfer {
+  id          BigInt   @id @default(autoincrement())
+  fromUserId  BigInt
+  toUserId    BigInt
+  currencyId  BigInt
+  amount      Decimal  @db.Decimal(28, 8)
+  createdAt   DateTime @default(now())
+
+  fromUser  User     @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser    User     @relation("ToUser", fields: [toUserId], references: [id])
+  currency  Currency @relation(fields: [currencyId], references: [id])
+}
+
+model ExternalTransfer {
+  id         BigInt         @id @default(autoincrement())
+  userId     BigInt
+  currencyId BigInt
+  toAddress  String         @db.VarChar(255)
+  amount     Decimal        @db.Decimal(20, 8)
+  txHash     String?        @db.VarChar(255)
+  status     TransferStatus @default(PENDING)
+  createdAt  DateTime       @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+  currency  Currency @relation(fields: [currencyId], references: [id])
+}
