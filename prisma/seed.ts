@@ -103,6 +103,18 @@ async function main() {
       email: 'admin@test.com',
       password: adminPassword,
       role: Role.ADMIN,
+      wallets: {
+        create: [
+          {
+            currencyId: btc.id,
+            balance: new Decimal(10).toFixed(8),
+          },
+          {
+            currencyId: thb.id,
+            balance: new Decimal(1000000000).toFixed(8),
+          },
+        ],
+      },
     },
   })
 
