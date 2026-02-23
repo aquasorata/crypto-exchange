@@ -64,6 +64,7 @@ async function main() {
 
   const btc = currencies[0]
   const thb = currencies[3]
+  const tradableCryptos = currencies.filter((currency) => currency.type === CurrencyType.CRYPTO)
 
   console.log('💰 Currencies created')
 
@@ -104,16 +105,26 @@ async function main() {
       password: adminPassword,
       role: Role.ADMIN,
       wallets: {
-        create: [
-          {
-            currencyId: btc.id,
-            balance: new Decimal(10).toFixed(8),
-          },
-          {
-            currencyId: thb.id,
-            balance: new Decimal(1000000000).toFixed(8),
-          },
-        ],
+        create: currencies.map((currency) => {
+          if (currency.id === btc.id) {
+            return {
+              currencyId: currency.id,
+              balance: new Decimal(10).toFixed(8),
+            }
+          }
+
+          if (currency.id === thb.id) {
+            return {
+              currencyId: currency.id,
+              balance: new Decimal(1000000000).toFixed(8),
+            }
+          }
+
+          return {
+            currencyId: currency.id,
+            balance: new Decimal(0.5).toFixed(8),
+          }
+        }),
       },
     },
   })
@@ -135,16 +146,26 @@ async function main() {
         password: hashedPassword,
         role: Role.USER,
         wallets: {
-          create: [
-            {
-              currencyId: btc.id,
-              balance: new Decimal(1 + Math.random()).toFixed(8),
-            },
-            {
-              currencyId: thb.id,
-              balance: new Decimal(500000 + Math.random() * 10000).toFixed(8),
-            },
-          ],
+          create: currencies.map((currency) => {
+            if (currency.id === thb.id) {
+              return {
+                currencyId: currency.id,
+                balance: new Decimal(500000 + Math.random() * 10000).toFixed(8),
+              }
+            }
+
+            if (currency.id === btc.id) {
+              return {
+                currencyId: currency.id,
+                balance: new Decimal(1 + Math.random()).toFixed(8),
+              }
+            }
+
+            return {
+              currencyId: currency.id,
+              balance: new Decimal(0.2 + Math.random() * 0.8).toFixed(8),
+            }
+          }),
         },
       },
       include: { wallets: true },
@@ -158,7 +179,7 @@ async function main() {
   // =========================
   // 6. Create Random Orders
   // =========================
-  const allCurrencies = currencies
+  const allCurrencies = tradableCryptos
   
   for (let i = 0; i < 40; i++) {
     const randomUser = users[Math.floor(Math.random() * users.length)]
